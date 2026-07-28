@@ -1,0 +1,181 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design System Definition - Enterprise Tier
+ */
+@theme inline {
+  /* Border Radii - Slightly smaller for a sharper, corporate feel */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Light Theme - Clean & Trustworthy */
+:root {
+  --radius: 0.5rem; /* Sharp, professional corners */
+  
+  /* Core Colors */
+  --background: oklch(1 0 0); /* Pure White */
+  --foreground: oklch(0.2 0.01 250); /* Deep Slate, softer than pure black */
+  
+  /* Surfaces */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.01 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.01 250);
+  
+  /* Interactions */
+  --primary: oklch(0.45 0.15 260); /* Deep Corporate Indigo/Blue */
+  --primary-foreground: oklch(0.98 0 0); /* Crisp White */
+  
+  --secondary: oklch(0.96 0.01 250); /* Very Light Slate */
+  --secondary-foreground: oklch(0.2 0.01 250);
+  
+  --accent: oklch(0.96 0.01 250); 
+  --accent-foreground: oklch(0.2 0.01 250);
+  
+  --muted: oklch(0.96 0.01 250);
+  --muted-foreground: oklch(0.55 0.01 250); /* Medium Slate for secondary text */
+  
+  --destructive: oklch(0.55 0.2 25); /* Refined, accessible Red */
+  --destructive-foreground: oklch(1 0 0);
+  
+  /* UI Elements */
+  --border: oklch(0.92 0.01 250); /* Clean structural borders */
+  --input: oklch(0.92 0.01 250);
+  --ring: oklch(0.45 0.15 260); /* Indigo focus rings for clear accessibility */
+  
+  /* Charts - Muted, professional data visualization */
+  --chart-1: oklch(0.45 0.15 260); /* Deep Indigo */
+  --chart-2: oklch(0.6 0.1 180);  /* Teal */
+  --chart-3: oklch(0.5 0.1 300);  /* Muted Purple */
+  --chart-4: oklch(0.7 0.12 70);  /* Gold/Ochre */
+  --chart-5: oklch(0.6 0.1 25);   /* Terra Cotta */
+  
+  /* Sidebar */
+  --sidebar: oklch(0.98 0.005 250); /* Extremely subtle gray off-white */
+  --sidebar-foreground: oklch(0.2 0.01 250);
+  --sidebar-primary: oklch(0.45 0.15 260);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.94 0.01 250); 
+  --sidebar-accent-foreground: oklch(0.2 0.01 250);
+  --sidebar-border: oklch(0.92 0.01 250);
+  --sidebar-ring: oklch(0.45 0.15 260);
+}
+
+/* Dark Theme - Sleek & Focused */
+.dark {
+  /* Core Colors */
+  --background: oklch(0.15 0.01 250); /* Deep Charcoal/Slate */
+  --foreground: oklch(0.98 0.01 250); /* Crisp Off-White */
+  
+  /* Surfaces */
+  --card: oklch(0.18 0.01 250); /* Slightly elevated from background */
+  --card-foreground: oklch(0.98 0.01 250);
+  --popover: oklch(0.18 0.01 250);
+  --popover-foreground: oklch(0.98 0.01 250);
+  
+  /* Interactions */
+  --primary: oklch(0.65 0.15 260); /* Lighter Indigo for dark mode contrast */
+  --primary-foreground: oklch(0.98 0 0); /* Maintains white text for consistency */
+  
+  --secondary: oklch(0.22 0.01 250); /* Dark Slate */
+  --secondary-foreground: oklch(0.98 0.01 250);
+  
+  --accent: oklch(0.22 0.01 250); 
+  --accent-foreground: oklch(0.98 0.01 250);
+  
+  --muted: oklch(0.22 0.01 250);
+  --muted-foreground: oklch(0.65 0.01 250); /* Readable gray text */
+  
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(1 0 0);
+  
+  /* UI Elements */
+  --border: oklch(0.25 0.01 250); /* Subtle dividers */
+  --input: oklch(0.25 0.01 250);
+  --ring: oklch(0.65 0.15 260);
+  
+  /* Charts */
+  --chart-1: oklch(0.65 0.15 260);
+  --chart-2: oklch(0.7 0.1 180);
+  --chart-3: oklch(0.65 0.1 300);
+  --chart-4: oklch(0.75 0.12 70);
+  --chart-5: oklch(0.65 0.1 25);
+  
+  /* Sidebar */
+  --sidebar: oklch(0.12 0.01 250); /* Darker than main background for depth */
+  --sidebar-foreground: oklch(0.98 0.01 250);
+  --sidebar-primary: oklch(0.65 0.15 260);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.2 0.01 250); 
+  --sidebar-accent-foreground: oklch(0.98 0.01 250);
+  --sidebar-border: oklch(0.25 0.01 250);
+  --sidebar-ring: oklch(0.65 0.15 260);
+}
+
+/* Global Aesthetics & Base Normalization */
+@layer base {
+  * {
+    border-color: var(--color-border);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+  }
+
+  ::selection {
+    background-color: var(--color-primary);
+    color: var(--color-primary-foreground);
+  }
+}

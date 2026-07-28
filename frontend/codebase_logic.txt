@@ -1,0 +1,1186 @@
+
+
+--- src/routes/index.tsx ---
+
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    throw redirect({ to: "/chat" });
+  },
+});
+
+
+--- src/routes/__root.tsx ---
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  Outlet,
+  Link,
+  createRootRouteWithContext,
+  useRouter,
+  HeadContent,
+  Scripts,
+} from "@tanstack/react-router";
+import { type ReactNode } from "react";
+
+import appCss from "../styles.css?url";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { Toaster } from "@/components/ui/sonner";
+
+function NotFoundComponent() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-7xl font-bold text-foreground">404</h1>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The page you're looking for doesn't exist or has been moved.
+        </p>
+        <div className="mt-6">
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Go home
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// RESTORED FUNCTION DEFINITION HERE
+function ErrorComponent({ error, reset }: { error: any; reset: () => void }) {
+  const router = useRouter();
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          This page didn't load
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Something went wrong on our end. You can try refreshing or head back home.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Try again
+          </button>
+          <a
+            href="/"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Go home
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  head: () => ({
+    meta: [
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "Chronomind — Assistant, Calendar & Reminders" },
+      {
+        name: "description",
+        content:
+          "Chat with your assistant, plan your day, and stay on top of reminders — all in one place.",
+      },
+      { name: "author", content: "Chronomind" },
+      { property: "og:title", content: "Chronomind — Assistant, Calendar & Reminders" },
+      {
+        property: "og:description",
+        content:
+          "Chat with your assistant, plan your day, and stay on top of reminders — all in one place.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Chronomind — Assistant, Calendar & Reminders" },
+      {
+        name: "twitter:description",
+        content:
+          "Chat with your assistant, plan your day, and stay on top of reminders — all in one place.",
+      },
+    ],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+    ],
+  }),
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent, // ADDED BACK TO ROUTE CONFIG
+});
+
+function RootShell({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+function RootComponent() {
+  const { queryClient } = Route.useRouteContext();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SidebarProvider>
+        <div className="flex min-h-screen w-full bg-background">
+          <AppSidebar />
+          <div className="flex flex-1 flex-col">
+            <header className="flex h-12 items-center border-b px-2">
+              <SidebarTrigger />
+            </header>
+            <main className="flex-1 min-h-0">
+              <Outlet />
+            </main>
+          </div>
+        </div>
+        <Toaster />
+      </SidebarProvider>
+    </QueryClientProvider>
+  );
+}
+
+
+--- src/routes/calendar.tsx ---
+
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { format, isSameDay } from "date-fns";
+import { Plus, MapPin, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { seedEvents, type CalendarEvent } from "@/lib/mock-data";
+
+export const Route = createFileRoute("/calendar")({
+  head: () => ({
+    meta: [
+      { title: "Calendar — Chronomind" },
+      { name: "description", content: "See your day at a glance. Google Calendar sync coming soon." },
+      { property: "og:title", content: "Calendar — Chronomind" },
+      { property: "og:description", content: "See your day at a glance. Google Calendar sync coming soon." },
+    ],
+  }),
+  component: CalendarPage,
+});
+
+function CalendarPage() {
+  const [events, setEvents] = useState<CalendarEvent[]>(seedEvents);
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ summary: "", date: format(new Date(), "yyyy-MM-dd"), start: "10:00", end: "11:00", location: "" });
+
+  const dayEvents = events
+    .filter((e) => date && isSameDay(new Date(e.start.dateTime), date))
+    .sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
+
+  const create = () => {
+    if (!form.summary) return;
+    const startISO = new Date(`${form.date}T${form.start}`).toISOString();
+    const endISO = new Date(`${form.date}T${form.end}`).toISOString();
+    setEvents((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        summary: form.summary,
+        location: form.location || undefined,
+        start: { dateTime: startISO },
+        end: { dateTime: endISO },
+        calendarId: "primary",
+        source: "local",
+      },
+    ]);
+    setOpen(false);
+    setForm({ summary: "", date: form.date, start: "10:00", end: "11:00", location: "" });
+  };
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="flex items-center justify-between border-b px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Calendar</h1>
+          <p className="text-sm text-muted-foreground">Local events. Google Calendar sync coming soon.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button variant="outline" size="sm" disabled>
+                    Connect Google Calendar
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Coming soon</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-2">
+                <Plus className="h-4 w-4" /> New event
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New event</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="e-title">Title</Label>
+                  <Input id="e-title" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="e-date">Date</Label>
+                  <Input id="e-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="e-start">Start</Label>
+                    <Input id="e-start" type="time" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label htmlFor="e-end">End</Label>
+                    <Input id="e-end" type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="e-loc">Location</Label>
+                  <Input id="e-loc" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={create}>Create</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </header>
+
+      <div className="grid flex-1 grid-cols-1 gap-6 overflow-auto p-6 md:grid-cols-[auto_1fr]">
+        <div className="rounded-lg border p-3">
+          <Calendar mode="single" selected={date} onSelect={setDate} className="pointer-events-auto" />
+        </div>
+        <div>
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+            {date ? format(date, "EEEE, MMMM d") : "Select a day"}
+          </h2>
+          {dayEvents.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No events on this day.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {dayEvents.map((e) => (
+                <li key={e.id} className="rounded-lg border bg-card p-3">
+                  <div className="font-medium">{e.summary}</div>
+                  <div className="mt-1 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {format(new Date(e.start.dateTime), "p")} – {format(new Date(e.end.dateTime), "p")}
+                    </span>
+                    {e.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {e.location}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+--- src/routes/reminders.tsx ---
+
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { format } from "date-fns";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { seedReminders, type Reminder } from "@/lib/mock-data";
+
+export const Route = createFileRoute("/reminders")({
+  head: () => ({
+    meta: [
+      { title: "Reminders — Chronomind" },
+      { name: "description", content: "Track tasks and due dates. Google Reminders sync coming soon." },
+      { property: "og:title", content: "Reminders — Chronomind" },
+      { property: "og:description", content: "Track tasks and due dates. Google Reminders sync coming soon." },
+    ],
+  }),
+  component: RemindersPage,
+});
+
+const priorityColor: Record<Reminder["priority"], string> = {
+  high: "bg-destructive/15 text-destructive border-destructive/30",
+  medium: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  low: "bg-muted text-muted-foreground",
+};
+
+function RemindersPage() {
+  const [reminders, setReminders] = useState<Reminder[]>(seedReminders);
+  const [tab, setTab] = useState<"all" | "upcoming" | "completed">("all");
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", notes: "", due: "", priority: "medium" as Reminder["priority"] });
+
+  const filtered = reminders.filter((r) => {
+    if (tab === "completed") return r.status === "completed";
+    if (tab === "upcoming") return r.status === "needsAction" && r.due && new Date(r.due) >= new Date();
+    return true;
+  });
+
+  const toggle = (id: string) =>
+    setReminders((rs) =>
+      rs.map((r) => (r.id === id ? { ...r, status: r.status === "completed" ? "needsAction" : "completed" } : r)),
+    );
+
+  const create = () => {
+    if (!form.title) return;
+    setReminders((rs) => [
+      {
+        id: crypto.randomUUID(),
+        title: form.title,
+        notes: form.notes || undefined,
+        due: form.due ? new Date(form.due).toISOString() : undefined,
+        status: "needsAction",
+        priority: form.priority,
+        taskListId: "@default",
+        source: "local",
+      },
+      ...rs,
+    ]);
+    setOpen(false);
+    setForm({ title: "", notes: "", due: "", priority: "medium" });
+  };
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="flex items-center justify-between border-b px-6 py-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Reminders</h1>
+          <p className="text-sm text-muted-foreground">Local reminders. Google Reminders sync coming soon.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button variant="outline" size="sm" disabled>
+                    Connect Google Reminders
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Coming soon</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-2">
+                <Plus className="h-4 w-4" /> New reminder
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New reminder</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="r-title">Title</Label>
+                  <Input id="r-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="r-notes">Notes</Label>
+                  <Textarea id="r-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="r-due">Due</Label>
+                  <Input id="r-due" type="datetime-local" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} />
+                </div>
+                <div>
+                  <Label htmlFor="r-prio">Priority</Label>
+                  <select
+                    id="r-prio"
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: e.target.value as Reminder["priority"] })}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={create}>Create</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-auto p-6">
+        <div className="mx-auto max-w-2xl">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+            </TabsList>
+            <TabsContent value={tab} className="mt-4">
+              {filtered.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  Nothing here.
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {filtered.map((r) => (
+                    <li key={r.id} className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                      <Checkbox
+                        checked={r.status === "completed"}
+                        onCheckedChange={() => toggle(r.id)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className={r.status === "completed" ? "line-through text-muted-foreground" : "font-medium"}>
+                          {r.title}
+                        </div>
+                        {r.notes && <div className="text-xs text-muted-foreground mt-0.5">{r.notes}</div>}
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                          {r.due && (
+                            <span className="text-muted-foreground">
+                              Due {format(new Date(r.due), "PPp")}
+                            </span>
+                          )}
+                          <Badge variant="outline" className={priorityColor[r.priority]}>
+                            {r.priority}
+                          </Badge>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+--- src/routes/chat.tsx ---
+
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { Paperclip, Send, X, FileText, Image as ImageIcon, File } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+
+import {
+  cannedReply,
+  seedConversations,
+  type UIMessage,
+  type UIMessagePart,
+} from "@/lib/mock-data";
+import logoUrl from "@/assets/logo.png";
+
+export const Route = createFileRoute("/chat")({
+  head: () => ({
+    meta: [
+      { title: "Chat — Chronomind" },
+      {
+        name: "description",
+        content: "Chat with your assistant, attach documents, and get answers.",
+      },
+      { property: "og:title", content: "Chat — Chronomind" },
+      {
+        property: "og:description",
+        content: "Chat with your assistant, attach documents, and get answers.",
+      },
+    ],
+  }),
+  component: ChatPage,
+});
+
+const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx,.txt,.md,.csv";
+
+function fileIcon(mime: string) {
+  if (mime.startsWith("image/")) return ImageIcon;
+  if (mime.includes("pdf") || mime.includes("word") || mime.includes("text")) return FileText;
+  return File;
+}
+
+function ChatPage() {
+  const [messages, setMessages] = useState<UIMessage[]>(seedConversations[0].messages);
+  const [input, setInput] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [pending, setPending] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, pending]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text && files.length === 0) return;
+    const parts: UIMessagePart[] = [];
+    if (text) parts.push({ type: "text", text });
+    for (const f of files)
+      parts.push({
+        type: "file",
+        name: f.name,
+        size: f.size,
+        mime: f.type || "application/octet-stream",
+      });
+    const userMsg: UIMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((m) => [...m, userMsg]);
+    setInput("");
+    setFiles([]);
+    setPending(true);
+
+    try {
+      const formData = new FormData();
+
+      formData.append("user_text", text);
+
+      // For now send only the first file
+      if (files.length > 0) {
+        formData.append("image", files[0]);
+      }
+
+      const response = await fetch("http://127.0.0.1:8000/ingest", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to contact backend");
+      }
+
+      const data = await response.json();
+
+      const reply: UIMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "```json\n" + JSON.stringify(data, null, 2) + "\n```",
+          },
+        ],
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((m) => [...m, reply]);
+    } catch (err) {
+      const reply: UIMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: `Backend error:\n\n${err}`,
+          },
+        ],
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((m) => [...m, reply]);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  const empty = messages.length === 0;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-4 py-8">
+          {empty ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <img src={logoUrl} alt="" width={64} height={64} className="mb-4" />
+              <h1 className="text-2xl font-semibold tracking-tight">How can I help you today?</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Ask a question or attach documents to get started.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {messages.map((m) => (
+                <MessageBubble key={m.id} message={m} />
+              ))}
+              {pending && (
+                <div className="text-sm text-muted-foreground animate-pulse">Thinking…</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t bg-background p-4">
+        <div className="mx-auto max-w-3xl">
+          {files.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {files.map((f, i) => {
+                const Icon = fileIcon(f.type);
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1 text-xs"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span className="max-w-[200px] truncate">{f.name}</span>
+                    <span className="text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                    <button
+                      onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label={`Remove ${f.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="relative flex items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm">
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept={ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                const list = e.target.files;
+                if (list) setFiles((prev) => [...prev, ...Array.from(list)]);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => fileRef.current?.click()}
+              aria-label="Attach files"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Message Chronomind…"
+              rows={1}
+              className="min-h-[40px] max-h-48 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+            />
+            <Button
+              size="icon"
+              onClick={send}
+              disabled={!input.trim() && files.length === 0}
+              aria-label="Send"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Chronomind can make mistakes. Verify important information.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ message }: { message: UIMessage }) {
+  const isUser = message.role === "user";
+  const text = message.parts
+    .filter((p) => p.type === "text")
+    .map((p) => (p as { text: string }).text)
+    .join("\n\n");
+  const files = message.parts.filter((p) => p.type === "file") as Array<
+    Extract<UIMessagePart, { type: "file" }>
+  >;
+
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[80%] rounded-2xl bg-primary px-4 py-2 text-primary-foreground">
+          {text && <div className="whitespace-pre-wrap">{text}</div>}
+          {files.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {files.map((f, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-md bg-primary-foreground/10 px-2 py-1 text-xs"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span className="truncate">{f.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-3">
+      <img src={logoUrl} alt="" width={28} height={28} className="mt-1 h-7 w-7 flex-shrink-0" />
+      <div className="prose prose-sm dark:prose-invert max-w-none flex-1 text-foreground">
+        <ReactMarkdown>{text}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+
+--- src/components/app-sidebar.tsx ---
+
+import { Link, useRouterState } from "@tanstack/react-router";
+import { Bell, Calendar as CalendarIcon, MessageSquare, Plus } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ThemeToggle } from "@/components/theme-toggle";
+import logoUrl from "@/assets/logo.png";
+import { seedConversations } from "@/lib/mock-data";
+
+const navItems = [
+  { title: "Chat", url: "/chat", icon: MessageSquare },
+  { title: "Calendar", url: "/calendar", icon: CalendarIcon },
+  { title: "Reminders", url: "/reminders", icon: Bell },
+];
+
+export function AppSidebar() {
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2 py-1">
+          <img src={logoUrl} alt="Chronomind logo" width={28} height={28} className="rounded-md" />
+          {!collapsed && <span className="text-sm font-semibold tracking-tight">Chronomind</span>}
+        </div>
+        <div className="px-2 pt-1">
+          <Button asChild size="sm" className="w-full justify-start gap-2">
+            <Link to="/chat">
+              <Plus className="h-4 w-4" />
+              {!collapsed && <span>New chat</span>}
+            </Link>
+          </Button>
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
+                    <Link to={item.url} className="flex items-center gap-2">
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {!collapsed && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Recent chats</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {seedConversations.map((c) => (
+                  <SidebarMenuItem key={c.id}>
+                    <SidebarMenuButton asChild>
+                      <Link to="/chat" className="truncate text-sm">
+                        {c.title}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+      </SidebarContent>
+
+      <SidebarFooter>
+        <div className="flex items-center justify-between gap-2 px-2 py-1">
+          {!collapsed && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button variant="outline" size="sm" disabled className="text-xs">
+                      Connect Google
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Coming soon</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <ThemeToggle />
+        </div>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+
+
+--- src/components/theme-toggle.tsx ---
+
+import { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export function ThemeToggle() {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("theme") as "light" | "dark" | null;
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial = stored ?? (prefersDark ? "dark" : "light");
+    setTheme(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+  }, []);
+
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("theme", next);
+    document.documentElement.classList.toggle("dark", next === "dark");
+  };
+
+  return (
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </Button>
+  );
+}
+
+
+--- src/lib/utils.ts ---
+
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+
+--- src/lib/error-page.ts ---
+
+export function renderErrorPage(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>This page didn't load</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font: 15px/1.5 system-ui, -apple-system, sans-serif; background: #fafafa; color: #111; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 1.5rem; }
+      .card { max-width: 28rem; width: 100%; text-align: center; padding: 2rem; }
+      h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+      p { color: #4b5563; margin: 0 0 1.5rem; }
+      .actions { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+      a, button { padding: 0.5rem 1rem; border-radius: 0.375rem; font: inherit; cursor: pointer; text-decoration: none; border: 1px solid transparent; }
+      .primary { background: #111; color: #fff; }
+      .secondary { background: #fff; color: #111; border-color: #d1d5db; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>This page didn't load</h1>
+      <p>Something went wrong on our end. You can try refreshing or head back home.</p>
+      <div class="actions">
+        <button class="primary" onclick="location.reload()">Try again</button>
+        <a class="secondary" href="/">Go home</a>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
+
+--- src/lib/error-capture.ts ---
+
+// Captures the original Error out-of-band so server.ts can recover the stack
+// when h3 has already swallowed the throw into a generic 500 Response.
+
+let lastCapturedError: { error: unknown; at: number } | undefined;
+const TTL_MS = 5_000;
+
+function record(error: unknown) {
+  lastCapturedError = { error, at: Date.now() };
+}
+
+if (typeof globalThis.addEventListener === "function") {
+  globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
+  globalThis.addEventListener("unhandledrejection", (event) =>
+    record((event as PromiseRejectionEvent).reason),
+  );
+}
+
+export function consumeLastCapturedError(): unknown {
+  if (!lastCapturedError) return undefined;
+  if (Date.now() - lastCapturedError.at > TTL_MS) {
+    lastCapturedError = undefined;
+    return undefined;
+  }
+  const { error } = lastCapturedError;
+  lastCapturedError = undefined;
+  return error;
+}
+
+
+--- src/lib/mock-data.ts ---
+
+// Types shaped to mirror Google Calendar / Google Tasks so a future
+// real-provider swap only replaces the data source, not the UI.
+
+export type UIMessagePart = { type: "text"; text: string } | { type: "file"; name: string; size: number; mime: string };
+
+export type UIMessage = {
+  id: string;
+  role: "user" | "assistant";
+  parts: UIMessagePart[];
+  createdAt: string;
+};
+
+export type Conversation = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: UIMessage[];
+};
+
+export type CalendarEvent = {
+  id: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  start: { dateTime: string; timeZone?: string };
+  end: { dateTime: string; timeZone?: string };
+  calendarId: string;
+  source: "local" | "google";
+};
+
+export type Reminder = {
+  id: string;
+  title: string;
+  notes?: string;
+  due?: string;
+  status: "needsAction" | "completed";
+  priority: "low" | "medium" | "high";
+  taskListId: string;
+  source: "local" | "google";
+};
+
+// --- mock seed ---
+
+const now = new Date();
+const isoAt = (dayOffset: number, hour: number, minute = 0) => {
+  const d = new Date(now);
+  d.setDate(d.getDate() + dayOffset);
+  d.setHours(hour, minute, 0, 0);
+  return d.toISOString();
+};
+
+export const seedConversations: Conversation[] = [
+  {
+    id: "c1",
+    title: "Project ingestion pipeline",
+    updatedAt: isoAt(0, 9),
+    messages: [
+      {
+        id: "m1",
+        role: "user",
+        parts: [{ type: "text", text: "Summarize the ingestion layer for me." }],
+        createdAt: isoAt(0, 9),
+      },
+      {
+        id: "m2",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "The **ingestion layer** parses input, routes text vs. documents, runs OCR (paddleOCR) on scans, then structures everything into typed objects for the reasoning engine.",
+          },
+        ],
+        createdAt: isoAt(0, 9, 1),
+      },
+    ],
+  },
+  { id: "c2", title: "Weekly planning", updatedAt: isoAt(-1, 15), messages: [] },
+  { id: "c3", title: "OCR benchmarks", updatedAt: isoAt(-2, 11), messages: [] },
+  { id: "c4", title: "Prompt assembly draft", updatedAt: isoAt(-4, 18), messages: [] },
+];
+
+export const seedEvents: CalendarEvent[] = [
+  {
+    id: "e1",
+    summary: "Design review",
+    location: "Zoom",
+    start: { dateTime: isoAt(0, 10) },
+    end: { dateTime: isoAt(0, 11) },
+    calendarId: "primary",
+    source: "local",
+  },
+  {
+    id: "e2",
+    summary: "1:1 with Alex",
+    start: { dateTime: isoAt(0, 14) },
+    end: { dateTime: isoAt(0, 14, 30) },
+    calendarId: "primary",
+    source: "local",
+  },
+  {
+    id: "e3",
+    summary: "Sprint demo",
+    location: "Room 4B",
+    start: { dateTime: isoAt(1, 15) },
+    end: { dateTime: isoAt(1, 16) },
+    calendarId: "primary",
+    source: "local",
+  },
+  {
+    id: "e4",
+    summary: "Dentist",
+    start: { dateTime: isoAt(3, 9) },
+    end: { dateTime: isoAt(3, 10) },
+    calendarId: "primary",
+    source: "local",
+  },
+];
+
+export const seedReminders: Reminder[] = [
+  {
+    id: "r1",
+    title: "Submit expense report",
+    due: isoAt(0, 17),
+    status: "needsAction",
+    priority: "high",
+    taskListId: "@default",
+    source: "local",
+  },
+  {
+    id: "r2",
+    title: "Reply to onboarding email",
+    notes: "Follow up on doc access",
+    due: isoAt(1, 9),
+    status: "needsAction",
+    priority: "medium",
+    taskListId: "@default",
+    source: "local",
+  },
+  {
+    id: "r3",
+    title: "Buy groceries",
+    due: isoAt(2, 18),
+    status: "needsAction",
+    priority: "low",
+    taskListId: "@default",
+    source: "local",
+  },
+  {
+    id: "r4",
+    title: "Renew library card",
+    status: "completed",
+    priority: "low",
+    taskListId: "@default",
+    source: "local",
+  },
+];
+
+export const cannedReply = (userText: string) =>
+  `Got it — you said: "${userText.slice(0, 120)}"${userText.length > 120 ? "…" : ""}\n\nThis is a mocked assistant response. Real LLM wiring lands later.`;
