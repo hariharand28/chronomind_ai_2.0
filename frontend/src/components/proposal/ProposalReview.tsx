@@ -54,7 +54,7 @@ export function ProposalReview() {
             Proposal Review
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Review the study plan ChronoMind AI generated from your syllabus.
+            Review the study plan ChronoMind AI generated from your syllabus..
           </p>
         </motion.div>
 
