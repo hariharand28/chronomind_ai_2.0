@@ -50,30 +50,7 @@ const isoAt = (dayOffset: number, hour: number, minute = 0) => {
 };
 
 export const seedConversations: Conversation[] = [
-  {
-    id: "c1",
-    title: "Project ingestion pipeline",
-    updatedAt: isoAt(0, 9),
-    messages: [
-      {
-        id: "m1",
-        role: "user",
-        parts: [{ type: "text", text: "Summarize the ingestion layer for me." }],
-        createdAt: isoAt(0, 9),
-      },
-      {
-        id: "m2",
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: "The **ingestion layer** parses input, routes text vs. documents, runs OCR (paddleOCR) on scans, then structures everything into typed objects for the reasoning engine.",
-          },
-        ],
-        createdAt: isoAt(0, 9, 1),
-      },
-    ],
-  },
+  { id: "c1", title: "Project ingestion pipeline", updatedAt: isoAt(0, 9), messages: [] },
   { id: "c2", title: "Weekly planning", updatedAt: isoAt(-1, 15), messages: [] },
   { id: "c3", title: "OCR benchmarks", updatedAt: isoAt(-2, 11), messages: [] },
   { id: "c4", title: "Prompt assembly draft", updatedAt: isoAt(-4, 18), messages: [] },

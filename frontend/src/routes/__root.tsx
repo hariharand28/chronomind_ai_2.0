@@ -7,12 +7,15 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
 
 import appCss from "../styles.css?url";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Toaster } from "@/components/ui/sonner";
+// NOTE: adjust this import path to wherever your Firebase `auth` instance is exported from
+import { auth } from "@/lib/firebase";
 
 function NotFoundComponent() {
   return (
@@ -123,8 +126,52 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Route paths that should remain accessible without authentication.
+const PUBLIC_PATHS = ["/login"];
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  const [user, setUser] = useState<User | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthChecked(true);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked) return;
+
+    const currentPath = router.state.location.pathname;
+    const isPublicPath = PUBLIC_PATHS.includes(currentPath);
+
+    if (!user && !isPublicPath) {
+      router.navigate({ to: "/login" });
+    }
+  }, [authChecked, user, router.state.location.pathname]);
+
+  // Avoid flashing protected content while the auth state is resolving.
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  const currentPath = router.state.location.pathname;
+  const isPublicPath = PUBLIC_PATHS.includes(currentPath);
+
+  if (!user && !isPublicPath) {
+    // Redirect is in-flight (handled by the effect above); render nothing meanwhile.
+    return null;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

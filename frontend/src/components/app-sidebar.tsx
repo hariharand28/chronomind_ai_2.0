@@ -1,5 +1,6 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Bell, Calendar as CalendarIcon, ClipboardCheck, ClipboardList, Home, MessageSquare, Plus, Sparkles } from "lucide-react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Bell, Calendar as CalendarIcon, ClipboardCheck, LogOut, Home, MessageSquare, Plus, Sparkles } from "lucide-react";
+import { signOut } from "firebase/auth";
 import {
   Sidebar,
   SidebarContent,
@@ -16,6 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserProfileCard } from "./user-profile-card";
+import { useAuthUser } from "@/hooks/use-auth-user";
+import { auth } from "@/lib/firebase";
 import logoUrl from "@/assets/logo.png";
 import { seedConversations } from "@/lib/mock-data";
 
@@ -32,6 +36,17 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const navigate = useNavigate();
+  const { user, loading } = useAuthUser();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate({ to: "/login" });
+    } catch (err) {
+      console.error("Sign-out failed:", err);
+    }
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -51,6 +66,9 @@ export function AppSidebar() {
             </span>
           )}
         </div>
+
+        {/* User Profile Card */}
+        <UserProfileCard user={user} loading={loading} collapsed={collapsed} />
 
         {/* Primary Action Button */}
         <SidebarMenu>
@@ -145,6 +163,35 @@ export function AppSidebar() {
 
           <ThemeToggle />
         </div>
+
+        {/* Log Out */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {collapsed ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleLogout}
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="w-full justify-start gap-2 text-xs font-normal text-muted-foreground hover:text-destructive"
+                >
+                  <LogOut className="h-3.5 w-3.5 shrink-0" />
+                  <span>Log Out</span>
+                </Button>
+              )}
+            </TooltipTrigger>
+            <TooltipContent side={collapsed ? "right" : "top"}>Log Out</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </SidebarFooter>
     </Sidebar>
   );

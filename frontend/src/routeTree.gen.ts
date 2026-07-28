@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as ProposalRouteImport } from './routes/proposal'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CalendarRouteImport } from './routes/calendar'
@@ -24,6 +25,11 @@ const RemindersRoute = RemindersRouteImport.update({
 const ProposalRoute = ProposalRouteImport.update({
   id: '/proposal',
   path: '/proposal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/calendar': typeof CalendarRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
   '/proposal': typeof ProposalRoute
   '/reminders': typeof RemindersRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/calendar': typeof CalendarRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
   '/proposal': typeof ProposalRoute
   '/reminders': typeof RemindersRoute
 }
@@ -69,21 +77,36 @@ export interface FileRoutesById {
   '/calendar': typeof CalendarRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
   '/proposal': typeof ProposalRoute
   '/reminders': typeof RemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/calendar' | '/chat' | '/dashboard' | '/proposal' | '/reminders'
+    | '/'
+    | '/calendar'
+    | '/chat'
+    | '/dashboard'
+    | '/login'
+    | '/proposal'
+    | '/reminders'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/calendar' | '/chat' | '/dashboard' | '/proposal' | '/reminders'
+  to:
+    | '/'
+    | '/calendar'
+    | '/chat'
+    | '/dashboard'
+    | '/login'
+    | '/proposal'
+    | '/reminders'
   id:
     | '__root__'
     | '/'
     | '/calendar'
     | '/chat'
     | '/dashboard'
+    | '/login'
     | '/proposal'
     | '/reminders'
   fileRoutesById: FileRoutesById
@@ -93,6 +116,7 @@ export interface RootRouteChildren {
   CalendarRoute: typeof CalendarRoute
   ChatRoute: typeof ChatRoute
   DashboardRoute: typeof DashboardRoute
+  LoginRoute: typeof LoginRoute
   ProposalRoute: typeof ProposalRoute
   RemindersRoute: typeof RemindersRoute
 }
@@ -111,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/proposal'
       fullPath: '/proposal'
       preLoaderRoute: typeof ProposalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -149,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   CalendarRoute: CalendarRoute,
   ChatRoute: ChatRoute,
   DashboardRoute: DashboardRoute,
+  LoginRoute: LoginRoute,
   ProposalRoute: ProposalRoute,
   RemindersRoute: RemindersRoute,
 }
