@@ -31,7 +31,7 @@ class ProposalBuilder:
 
         # 4. Allocate Slots
         for action in sorted_actions:
-            remaining_time = action.total_duration_minutes
+            remaining_time = action.estimated_duration_minutes
 
             while remaining_time > 0:
                 chunk = min(remaining_time, max_chunk_size)
@@ -58,7 +58,7 @@ class ProposalBuilder:
                         start_time=start_str,
                         end_time=end_str,
                         duration_minutes=chunk,
-                        notes=action.notes,
+                        notes=action.description,
                     )
                 )
 
@@ -75,5 +75,5 @@ class ProposalBuilder:
             scheduled_slots=slots,
             calendar_events=reasoning_output.calendar_events,
             reminders=reasoning_output.reminders,
-            explanation=reasoning_output.explanation,
+            explanation=reasoning_output.summary,
         )

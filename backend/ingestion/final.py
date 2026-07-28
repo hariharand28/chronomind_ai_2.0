@@ -16,7 +16,7 @@ app = FastAPI(title="ChronoMind Ingestion API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:11434",
+        "http://localhost:5173",
         "http://localhost:8080",
     ],  # match your dev server port
     allow_credentials=True,

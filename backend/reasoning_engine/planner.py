@@ -1,5 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from config import DEFAULT_MODEL, GOOGLE_API_KEY
 
 from .parser import (
     ConstraintOutput,
@@ -36,16 +38,14 @@ class PlannerEngine:
 
     def __init__(
         self,
-        model: str = "deepseek-r1:7b",
+        model: str = DEFAULT_MODEL,
         temperature: float = 0.2,
-        num_ctx: int = 8192,
     ):
 
-        self.llm = ChatOllama(
+        self.llm = ChatGoogleGenerativeAI(
             model=model,
             temperature=temperature,
-            num_ctx=num_ctx,
-            format="json",
+            google_api_key=GOOGLE_API_KEY,
         )
 
         self.chain = PROMPT | self.llm.with_structured_output(ReasoningOutput)
@@ -54,11 +54,13 @@ class PlannerEngine:
         self,
         facts: FactsOutput,
         constraints: ConstraintOutput,
+        rejection_feedback: str = "",
     ) -> ReasoningOutput:
 
         return self.chain.invoke(
             {
                 "facts": facts.model_dump(),
                 "constraints": constraints.model_dump(),
+                "rejection_feedback": rejection_feedback or "None.",
             }
         )

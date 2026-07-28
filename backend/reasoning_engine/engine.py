@@ -1,3 +1,5 @@
+from config import DEFAULT_MODEL
+
 from .constraints import ConstraintEngine
 from .context import ReasoningContext
 from .facts import FactsEngine
@@ -26,8 +28,8 @@ class ReasoningEngine:
 
     def __init__(
         self,
-        facts_model: str = "qwen3:4b",
-        planner_model: str = "deepseek-r1:7b",
+        facts_model: str = DEFAULT_MODEL,
+        planner_model: str = DEFAULT_MODEL,
     ):
 
         self.facts_engine = FactsEngine(model=facts_model)
@@ -46,8 +48,13 @@ class ReasoningEngine:
         constraints = self.constraint_engine.analyze(facts)
         print("✓ Constraint Engine finished")
 
+        # This was previously set on context.metadata by Orchestrator.run()
+        # but never actually read by anything, so rejection feedback from
+        # /decide silently had zero effect on the regenerated plan.
+        rejection_feedback = context.metadata.get("rejection_feedback", "")
+
         print("Running Planner Engine...")
-        plan = self.planner_engine.plan(facts, constraints)
+        plan = self.planner_engine.plan(facts, constraints, rejection_feedback=rejection_feedback)
         print("✓ Planner Engine finished")
 
         return plan

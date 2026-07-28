@@ -168,4 +168,14 @@ Facts
 Constraints
 ===========
 {constraints}
+
+Previous Rejection Feedback
+============================
+{rejection_feedback}
+
+If Previous Rejection Feedback is non-empty, this is a refinement of a
+plan the user already rejected. You MUST produce a materially
+different plan that directly addresses that feedback (different
+times, days, durations, or structure as appropriate) rather than
+repeating the previous schedule. Do not ignore this feedback.
 """

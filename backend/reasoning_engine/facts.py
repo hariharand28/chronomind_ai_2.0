@@ -1,5 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from config import DEFAULT_MODEL, GOOGLE_API_KEY
 
 from .context import ReasoningContext
 from .parser import FactsOutput
@@ -32,16 +34,14 @@ class FactsEngine:
 
     def __init__(
         self,
-        model: str = "qwen2.5:3b",
+        model: str = DEFAULT_MODEL,
         temperature: float = 0.0,
-        num_ctx: int = 8192,
     ):
 
-        self.llm = ChatOllama(
+        self.llm = ChatGoogleGenerativeAI(
             model=model,
             temperature=temperature,
-            num_ctx=num_ctx,
-            format="json",
+            google_api_key=GOOGLE_API_KEY,
         )
 
         self.chain = PROMPT | self.llm.with_structured_output(FactsOutput)

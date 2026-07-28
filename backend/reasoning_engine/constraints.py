@@ -1,5 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from config import DEFAULT_MODEL, GOOGLE_API_KEY
 
 from .parser import ConstraintOutput, FactsOutput
 from .prompt import CONSTRAINT_SYSTEM_PROMPT, CONSTRAINT_USER_PROMPT
@@ -25,16 +27,14 @@ class ConstraintEngine:
 
     def __init__(
         self,
-        model: str = "qwen3:4b",
+        model: str = DEFAULT_MODEL,
         temperature: float = 0.0,
-        num_ctx: int = 4096,
     ):
 
-        self.llm = ChatOllama(
+        self.llm = ChatGoogleGenerativeAI(
             model=model,
             temperature=temperature,
-            num_ctx=num_ctx,
-            format="json",
+            google_api_key=GOOGLE_API_KEY,
         )
 
         self.chain = PROMPT | self.llm.with_structured_output(ConstraintOutput)

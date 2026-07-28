@@ -1,7 +1,7 @@
 from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
 SYSTEM_PROMPT = """
@@ -67,7 +67,7 @@ class Document(BaseModel):
 
 
 class DocumentExtractor:
-    def __init__(self, llm: ChatOllama):
+    def __init__(self, llm: ChatGoogleGenerativeAI):
 
         self.llm = llm.with_structured_output(Document)
 

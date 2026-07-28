@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+persistence/chronomind.db
+persistence/*.db
+.env
+.vscode/
+.idea/
+*.log
