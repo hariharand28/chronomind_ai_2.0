@@ -25,7 +25,7 @@ function ProposalRoute() {
       proposal={proposal}
       onAccept={async () => {
   try {
-    const response = await fetch("http://localhost:8000/decide", {
+    const response = await fetch("https://chronomind-ai-2-0.onrender.com/decide", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -57,7 +57,7 @@ function ProposalRoute() {
   if (feedback === null) return;
 
   try {
-    const response = await fetch("http://localhost:8000/decide", {
+    const response = await fetch("https://chronomind-ai-2-0.onrender.com/decide", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

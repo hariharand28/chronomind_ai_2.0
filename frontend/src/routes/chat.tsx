@@ -110,7 +110,7 @@ setMessages((prev) => [...prev, userMsg]);
       formData.append("user_text", text);
       if (files.length > 0) formData.append("image", files[0]);
       
-      const response = await fetch("http://localhost:8000/chat", {
+      const response = await fetch("https://chronomind-ai-2-0.onrender.com/chat", {
         method: "POST",
         body: formData,
         signal: abortControllerRef.current?.signal, // Attach the abort signal
