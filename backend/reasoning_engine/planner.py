@@ -55,10 +55,12 @@ class PlannerEngine:
         facts: FactsOutput,
         constraints: ConstraintOutput,
         rejection_feedback: str = "",
+        current_datetime: str = "",
     ) -> ReasoningOutput:
 
         return self.chain.invoke(
             {
+                "current_datetime": current_datetime or "unknown",
                 "facts": facts.model_dump(),
                 "constraints": constraints.model_dump(),
                 "rejection_feedback": rejection_feedback or "None.",

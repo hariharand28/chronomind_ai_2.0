@@ -18,16 +18,21 @@ Requires Ollama running locally with the models referenced in
 reasoning_engine/*.py pulled (qwen2.5:3b, qwen3:4b, deepseek-r1:7b, qwen2.5:7b).
 """
 
+import asyncio
+from email.mime import image
+import json
 import os
 import tempfile
 import time
 from datetime import datetime, timedelta
 
+from dateutil import parser as dateutil_parser
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from background_manager.monitor import BackgroundManager
 from config import DEFAULT_MODEL, GOOGLE_API_KEY
 from ingestion.extractor import Document, DocumentExtractor
 from ingestion.ocr import extract_text
@@ -38,12 +43,42 @@ from proposal_manager.proposal import Proposal, ProposalDecision
 
 app = FastAPI(title="ChronoMind AI")
 
+print("[ChronoMind] Build marker: date-aware-scheduling-fix-v2 (2026-07-29)")
+
 db.init_db()
+
+background_manager = BackgroundManager()
+
+# Fan-out for SSE: every connected /notifications/stream client gets its
+# own queue; the scan loop below pushes into all of them.
+_sse_subscribers: list[asyncio.Queue] = []
+
+BACKGROUND_SCAN_INTERVAL_SECONDS = 30
+
+
+async def _background_scan_loop() -> None:
+    """
+    The "Memory watcher" running loop. Polls persistent memory on an
+    interval and pushes any newly-created notifications out to connected
+    SSE clients. Read-only with respect to proposals/schedule -- see the
+    module docstring in background_manager/monitor.py for why.
+    """
+    while True:
+        try:
+            new_notifications = background_manager.scan_once()
+            for notification in new_notifications:
+                for queue in list(_sse_subscribers):
+                    queue.put_nowait(notification)
+        except Exception as exc:  # noqa: BLE001 - never let the loop die
+            print(f"[background_manager] scan error: {exc}")
+
+        await asyncio.sleep(BACKGROUND_SCAN_INTERVAL_SECONDS)
 
 
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
+    asyncio.create_task(_background_scan_loop())
 
 
 app.add_middleware(
@@ -188,6 +223,10 @@ async def chat(
     document_text = ""
 
     if image is not None:
+        print("=" * 60)
+        print("Received file:", image.filename)
+
+        suffix = os.path.splitext(image.filename)[1]
         suffix = os.path.splitext(image.filename)[1]
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
@@ -196,6 +235,9 @@ async def chat(
 
         try:
             document_text, _ = _ocr_to_text(temp_path)
+            print("\nOCR TEXT:\n")
+            print(document_text[:1000])
+            print("=" * 60)
         finally:
             os.remove(temp_path)
 
@@ -203,6 +245,10 @@ async def chat(
         document=document_text,
         user_text=user_text,
     )
+    print("\nEXTRACTED DOCUMENT:\n")
+
+    print(extracted_document.model_dump())
+
 
     document_id = None
     if document_text:
@@ -239,6 +285,29 @@ async def chat(
             f"{slot.title} ({slot.duration_minutes} min)"
             + (f" \u2014 {slot.notes}" if slot.notes else "")
         )
+
+    if proposal.calendar_events:
+        lines.append("")
+        lines.append("**Fixed events**")
+        for event in proposal.calendar_events:
+            when = event.start_datetime
+            if event.end_datetime:
+                when = f"{when}\u2013{event.end_datetime}"
+            lines.append(
+                f"- **{event.title}**"
+                + (f" ({when})" if when else "")
+                + (f" \u2014 {event.description}" if event.description else "")
+            )
+
+    if proposal.reminders:
+        lines.append("")
+        lines.append("**Reminders**")
+        for reminder in proposal.reminders:
+            lines.append(
+                f"- **{reminder.title}**"
+                + (f" ({reminder.reminder_datetime})" if reminder.reminder_datetime else "")
+                + (f" \u2014 {reminder.notes}" if reminder.notes else "")
+            )
 
     chat_message = {
         "id": proposal.id,
@@ -352,6 +421,8 @@ async def decide(decision: ProposalDecision):
             db.accept_proposal(
                 proposal_id=decision.proposal_id,
                 scheduled_slots=[slot.model_dump() for slot in proposal.scheduled_slots],
+                calendar_events=[event.model_dump() for event in proposal.calendar_events],
+                reminders=[reminder.model_dump() for reminder in proposal.reminders],
             )
 
         return JSONResponse({"result": result.model_dump()})
@@ -434,6 +505,55 @@ def _next_occurrence_iso(day_name: str, time_str: str, reference: datetime) -> s
     ).isoformat()
 
 
+def _fixed_event_datetime_iso(text: str, reference: datetime) -> str | None:
+    """
+    Best-effort conversion of a calendar_event's free-text start/end
+    (e.g. "Wednesday 17:00", or a full date like "2026-08-01 09:00")
+    into a concrete ISO datetime for the calendar UI.
+    """
+    if not text:
+        return None
+
+    for weekday_name in _WEEKDAYS:
+        if weekday_name.lower() in text.lower():
+            try:
+                parsed_time = dateutil_parser.parse(text, fuzzy=True)
+            except (ValueError, OverflowError):
+                return None
+            return _next_occurrence_iso(
+                weekday_name, f"{parsed_time.hour:02d}:{parsed_time.minute:02d}", reference
+            )
+
+    try:
+        return dateutil_parser.parse(text, fuzzy=True, default=reference).isoformat()
+    except (ValueError, OverflowError):
+        return None
+
+
+@app.get("/proposal/{proposal_id}")
+async def get_proposal(proposal_id: str):
+    """
+    Returns a single proposal in the clean, stable shape the frontend can
+    render straight into a card:
+
+        { "proposal": { "id", "title", "description", "scheduled_slots",
+                         "calendar_events", "reminders", "explanation" } }
+
+    Reads straight from SQLite (raw_json column), so this works for any
+    proposal that was ever generated -- not just the one currently held
+    in the in-memory chat session -- and reflects live status
+    ("proposed" / "accepted" / "rejected" / "manual_review").
+    """
+    row = db.get_proposal(proposal_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Proposal not found.")
+
+    proposal_data = json.loads(row["raw_json"])
+    proposal_data["status"] = row["status"]
+
+    return JSONResponse({"proposal": proposal_data})
+
+
 @app.get("/schedule")
 async def get_schedule():
     """
@@ -468,7 +588,68 @@ async def get_schedule():
             }
         )
 
+    for event in db.get_committed_calendar_events():
+        committed_at = datetime.fromisoformat(event["committed_at"])
+        start_iso = _fixed_event_datetime_iso(event["start_datetime"], committed_at)
+        end_iso = _fixed_event_datetime_iso(event["end_datetime"], committed_at)
+
+        events.append(
+            {
+                "id": f"{event['proposal_id']}-{event['title']}-fixed",
+                "summary": event["title"],
+                "location": event.get("location", ""),
+                "start": {"dateTime": start_iso},
+                "end": {"dateTime": end_iso},
+                "calendarId": "primary",
+                "source": "chronomind",
+                "notes": event.get("description", ""),
+            }
+        )
+
     return JSONResponse({"scheduled_slots": events})
+
+
+@app.get("/notifications/stream")
+async def notifications_stream():
+    """
+    SSE publisher, matching the architecture diagram's Background Manager
+    box. Streams newly-created notifications in real time as text/event-stream.
+
+    A polling fallback (GET /notifications) also exists -- SSE connections
+    can be flaky across corporate proxies / some browser+OS combos, so the
+    frontend uses this as the primary path but can fall back to polling
+    without losing functionality.
+    """
+    queue: asyncio.Queue = asyncio.Queue()
+    _sse_subscribers.append(queue)
+
+    async def event_generator():
+        try:
+            # Send anything already undelivered so a freshly-opened tab
+            # doesn't miss notifications generated before it connected.
+            for notification in db.list_notifications(limit=20):
+                if notification["read_at"] is None:
+                    yield f"data: {json.dumps(notification)}\n\n"
+
+            while True:
+                notification = await queue.get()
+                yield f"data: {json.dumps(notification)}\n\n"
+        finally:
+            _sse_subscribers.remove(queue)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.get("/notifications")
+async def get_notifications(limit: int = 50):
+    """Polling fallback -- returns recent notifications, newest first."""
+    return JSONResponse({"notifications": db.list_notifications(limit=limit)})
+
+
+@app.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: int):
+    db.mark_notification_read(notification_id)
+    return JSONResponse({"status": "ok"})
 
 
 @app.get("/health")

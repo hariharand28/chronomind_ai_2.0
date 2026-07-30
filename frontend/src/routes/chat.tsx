@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, FormEvent } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { 
   Paperclip, 
   Send, 
@@ -21,7 +22,7 @@ import {
   type UIMessage,
   type UIMessagePart,
 } from "@/lib/mock-data";
-import logoUrl from "@/assets/logo.png";
+import logoUrl from "@/assets/gethu.png";
 
 export const Route = createFileRoute("/chat")({
   head: () => ({
@@ -46,6 +47,7 @@ function fileIcon(mime: string) {
 }
 
 function ChatPage() {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<UIMessage[]>(seedConversations[0]?.messages || []);
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -90,7 +92,12 @@ function ChatPage() {
       createdAt: new Date().toISOString(),
     };
 
-    setMessages((m) => [...m, userMsg]);
+    // Show the user's message immediately
+setMessages((prev) => [...prev, userMsg]);
+
+// Show a temporary loading message
+
+
     setInput("");
     setFiles([]);
     setPending(true);
@@ -102,7 +109,7 @@ function ChatPage() {
       const formData = new FormData();
       formData.append("user_text", text);
       if (files.length > 0) formData.append("image", files[0]);
-
+      
       const response = await fetch("http://localhost:8000/chat", {
         method: "POST",
         body: formData,
@@ -111,10 +118,28 @@ function ChatPage() {
 
       if (!response.ok) throw new Error("Failed to contact backend");
 
-      const data = await response.json();
-      setMessages((m) => [...m, data.proposal]);
-      
-    } catch (err) {
+
+const data = await response.json();
+
+const proposal = data.proposal.raw_proposal ?? data.proposal;
+
+// Remove the loading message
+
+
+sessionStorage.setItem(
+    "proposal",
+    JSON.stringify(proposal)
+);
+
+// Small delay so the user sees the loading state
+setTimeout(() => {
+    navigate({
+        to: "/proposal",
+    });
+}, 800);
+
+
+    } catch (err) { 
       // Ignore the error if it was intentionally aborted by the user
       if (err instanceof Error && err.name === "AbortError") {
         console.log("Generation stopped by the user.");
@@ -165,9 +190,8 @@ function ChatPage() {
         <div className="mx-auto max-w-3xl px-4 py-8">
           {isEmpty ? (
             <div className="flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-4 duration-500 py-24 text-center">
-              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 shadow-sm">
-                <img src={logoUrl} alt="Logo" width={48} height={48} className="object-contain" />
-              </div>
+                <img src={logoUrl} alt="Logo" width={55} height={55} className="object-contain" />
+            
               <h1 className="text-3xl font-bold tracking-tight">Hi there! How can I help?</h1>
               <p className="mt-2 text-base text-muted-foreground max-w-md">
                 Ask a complex question, generate content, or attach a document to get started.

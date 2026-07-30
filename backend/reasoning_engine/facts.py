@@ -53,6 +53,7 @@ class FactsEngine:
 
         return self.chain.invoke(
             {
+                "current_datetime": context.current_datetime,
                 "user_text": context.user_text,
                 "documents": [doc.model_dump() for doc in context.documents],
                 "calendar_events": [

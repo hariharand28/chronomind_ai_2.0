@@ -54,7 +54,12 @@ class ReasoningEngine:
         rejection_feedback = context.metadata.get("rejection_feedback", "")
 
         print("Running Planner Engine...")
-        plan = self.planner_engine.plan(facts, constraints, rejection_feedback=rejection_feedback)
+        plan = self.planner_engine.plan(
+            facts,
+            constraints,
+            rejection_feedback=rejection_feedback,
+            current_datetime=context.current_datetime,
+        )
         print("✓ Planner Engine finished")
 
         return plan

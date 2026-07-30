@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from ingestion.extractor import Document
@@ -75,6 +76,15 @@ class ReasoningContext(BaseModel):
     Everything it needs is passed through this object.
     """
 
+    # The real-world date/time the request was made, e.g.
+    # "Wednesday, 2026-07-29 14:30". Every stage that needs to resolve
+    # relative expressions ("tomorrow", "this Friday", "every Wednesday")
+    # or decide which day to start scheduling from MUST use this instead
+    # of guessing. Defaults to "now" at construction time.
+    current_datetime: str = Field(
+        default_factory=lambda: datetime.now().strftime("%A, %Y-%m-%d %H:%M")
+    )
+
     # Current user request
     user_text: str = ""
 
@@ -117,9 +127,10 @@ class ContextBuilder:
         memory: list[str] | None = None,
         preferences: UserPreference | None = None,
         metadata: dict[str, Any] | None = None,
+        current_datetime: str | None = None,
     ) -> ReasoningContext:
 
-        return ReasoningContext(
+        kwargs: dict[str, Any] = dict(
             user_text=user_text.strip(),
             documents=documents or [],
             calendar_events=calendar_events or [],
@@ -128,3 +139,8 @@ class ContextBuilder:
             preferences=preferences or UserPreference(),
             metadata=metadata or {},
         )
+
+        if current_datetime:
+            kwargs["current_datetime"] = current_datetime
+
+        return ReasoningContext(**kwargs)

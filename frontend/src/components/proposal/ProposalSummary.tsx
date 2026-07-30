@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Clock, BookOpen, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { StudyProposal } from "../types/proposal";
+import type { StudyProposal } from "./proposal";
 
 interface ProposalSummaryProps {
   proposals: StudyProposal[];
