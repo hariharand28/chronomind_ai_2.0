@@ -19,7 +19,6 @@ reasoning_engine/*.py pulled (qwen2.5:3b, qwen3:4b, deepseek-r1:7b, qwen2.5:7b).
 """
 
 import asyncio
-from email.mime import image
 import json
 import os
 import tempfile
@@ -27,9 +26,11 @@ import time
 from datetime import datetime, timedelta
 
 from dateutil import parser as dateutil_parser
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from google.genai import errors as genai_errors
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from background_manager.monitor import BackgroundManager
@@ -92,6 +93,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(genai_errors.APIError)
+async def _genai_error_handler(request, exc: genai_errors.APIError):
+    """
+    Turns a raw Gemini API error (429 quota, 404 model-not-found, 500
+    server error, etc.) into a clean JSON response instead of a raw
+    Python traceback reaching the browser. The frontend's chat.tsx
+    already displays whatever message comes back here.
+    """
+    status_code = getattr(exc, "code", None) or 503
+    if status_code == 429:
+        message = "The AI service is rate-limited right now. Please wait a few seconds and try again."
+    elif status_code == 404:
+        message = "The configured AI model isn't available. Check DEFAULT_MODEL in config.py."
+    else:
+        message = f"The AI service returned an error ({status_code}). Please try again."
+
+    return JSONResponse(status_code=503, content={"detail": message})
+
+
+@app.exception_handler(httpx.TransportError)
+async def _transport_error_handler(request, exc: httpx.TransportError):
+    """
+    Network-level failure talking to Gemini (e.g. 'Server disconnected
+    without sending a response') that survived the retry logic in
+    ocr.py / extractor.py. Usually transient -- a clean retry-friendly
+    message beats a raw traceback.
+    """
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Lost connection to the AI service momentarily. Please try again."
+        },
+    )
 
 # --------------------------------------------------------------------------
 # Shared, process-wide instances.
@@ -223,10 +259,6 @@ async def chat(
     document_text = ""
 
     if image is not None:
-        print("=" * 60)
-        print("Received file:", image.filename)
-
-        suffix = os.path.splitext(image.filename)[1]
         suffix = os.path.splitext(image.filename)[1]
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
@@ -235,9 +267,6 @@ async def chat(
 
         try:
             document_text, _ = _ocr_to_text(temp_path)
-            print("\nOCR TEXT:\n")
-            print(document_text[:1000])
-            print("=" * 60)
         finally:
             os.remove(temp_path)
 
@@ -245,10 +274,6 @@ async def chat(
         document=document_text,
         user_text=user_text,
     )
-    print("\nEXTRACTED DOCUMENT:\n")
-
-    print(extracted_document.model_dump())
-
 
     document_id = None
     if document_text:
@@ -607,6 +632,44 @@ async def get_schedule():
         )
 
     return JSONResponse({"scheduled_slots": events})
+
+
+@app.get("/reminders")
+async def get_reminders():
+    """
+    Returns committed reminders shaped to match the frontend's existing
+    Reminder type (id, title, notes, due, status, priority, taskListId,
+    source) so reminders.tsx can render them with zero UI changes beyond
+    swapping its data source. Nothing appears here until an explicit
+    accept has happened via /decide -- these come from the same
+    accept_proposal() write path as /schedule.
+    """
+    reminders = [
+        {
+            "id": str(r["id"]),
+            "title": r["title"],
+            "notes": r.get("notes") or None,
+            "due": r.get("reminder_datetime") or None,
+            "status": r["status"],
+            "priority": r["priority"],
+            "taskListId": "@default",
+            "source": "chronomind",
+        }
+        for r in db.get_committed_reminders()
+    ]
+    return JSONResponse({"reminders": reminders})
+
+
+@app.post("/reminders/{reminder_id}/complete")
+async def complete_reminder(reminder_id: int):
+    db.mark_reminder_status(reminder_id, "completed")
+    return JSONResponse({"status": "ok"})
+
+
+@app.post("/reminders/{reminder_id}/reopen")
+async def reopen_reminder(reminder_id: int):
+    db.mark_reminder_status(reminder_id, "needsAction")
+    return JSONResponse({"status": "ok"})
 
 
 @app.get("/notifications/stream")

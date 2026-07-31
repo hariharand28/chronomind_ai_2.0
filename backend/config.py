@@ -15,7 +15,7 @@ Get a free Gemini API key at: https://aistudio.google.com/apikey
 
 import os
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
 if not GOOGLE_API_KEY:
     raise RuntimeError(

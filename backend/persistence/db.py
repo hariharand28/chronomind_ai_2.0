@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS committed_reminders (
     title TEXT NOT NULL,
     reminder_datetime TEXT,
     notes TEXT,
+    priority TEXT NOT NULL DEFAULT 'medium',
+    status TEXT NOT NULL DEFAULT 'needsAction',  -- 'needsAction' | 'completed'
     committed_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (proposal_id) REFERENCES proposals(id)
 );
@@ -104,12 +106,34 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     read_at TEXT
 );
+
 """
+
+
+def _migrate_committed_reminders(conn: sqlite3.Connection) -> None:
+    """
+    CREATE TABLE IF NOT EXISTS only creates the table on a fresh DB -- it
+    does NOT add new columns to a committed_reminders table that already
+    exists from before 'status'/'priority' were added to the schema.
+    Without this, /reminders 500s with "no such column: status" on any
+    DB file created by an older version of this app. Add the columns if
+    they're missing so existing local chronomind.db files self-heal.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(committed_reminders)")}
+    if "priority" not in existing:
+        conn.execute(
+            "ALTER TABLE committed_reminders ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'"
+        )
+    if "status" not in existing:
+        conn.execute(
+            "ALTER TABLE committed_reminders ADD COLUMN status TEXT NOT NULL DEFAULT 'needsAction'"
+        )
 
 
 def init_db() -> None:
     with _connect() as conn:
         conn.executescript(SCHEMA)
+        _migrate_committed_reminders(conn)
 
 
 @contextmanager
@@ -315,14 +339,15 @@ def accept_proposal(
             conn.execute(
                 """
                 INSERT INTO committed_reminders
-                    (proposal_id, title, reminder_datetime, notes)
-                VALUES (?, ?, ?, ?)
+                    (proposal_id, title, reminder_datetime, notes, priority)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     proposal_id,
                     reminder["title"],
                     reminder.get("reminder_datetime", ""),
                     reminder.get("notes", ""),
+                    reminder.get("priority", "medium"),
                 ),
             )
 
@@ -354,10 +379,19 @@ def get_committed_calendar_events() -> list[dict]:
 def get_committed_reminders() -> list[dict]:
     with _connect() as conn:
         cur = conn.execute(
-            "SELECT title, reminder_datetime, notes, proposal_id, committed_at "
-            "FROM committed_reminders ORDER BY committed_at ASC"
+            "SELECT id, title, reminder_datetime, notes, priority, status, "
+            "proposal_id, committed_at FROM committed_reminders "
+            "ORDER BY committed_at ASC"
         )
         return [dict(row) for row in cur.fetchall()]
+
+
+def mark_reminder_status(reminder_id: int, status: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE committed_reminders SET status = ? WHERE id = ?",
+            (status, reminder_id),
+        )
 
 
 def get_all_documents() -> list[dict]:

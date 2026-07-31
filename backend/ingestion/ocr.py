@@ -20,12 +20,30 @@ reconstruction internally, guided by the prompt below).
 """
 
 import base64
-import mimetypes
+import io
 
+import httpx
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from PIL import Image
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from config import DEFAULT_MODEL, GOOGLE_API_KEY
+
+# Transient network failures worth retrying (e.g. "Server disconnected
+# without sending a response" -- httpx.RemoteProtocolError -- or a
+# dropped connection/timeout). Genuine API errors like a 429 quota or
+# 404 model-not-found are NOT retried here since retrying won't fix
+# them; those come back as google.genai.errors.ClientError, not a
+# transport-level exception.
+_RETRYABLE_EXCEPTIONS = (httpx.TransportError, ConnectionError, TimeoutError)
+
+MAX_IMAGE_DIMENSION = 2000  # px, longest side
 
 _OCR_PROMPT = (
     "You are an OCR engine. Extract ALL text visible in this document "
@@ -63,14 +81,40 @@ def _get_ocr_llm() -> ChatGoogleGenerativeAI:
 
 
 def _encode_image(image_path: str) -> str:
-    mime_type, _ = mimetypes.guess_type(image_path)
-    if mime_type is None:
-        mime_type = "image/png"
+    """
+    Downscales large images before sending to Gemini. A full-resolution
+    phone photo can be several MB; shrinking the longest side to
+    MAX_IMAGE_DIMENSION meaningfully reduces upload time and the chance
+    of a mid-transfer network disconnect, with no real accuracy cost
+    for OCR (Gemini doesn't need more resolution than this to read text).
+    """
+    with Image.open(image_path) as img:
+        img = img.convert("RGB")
+        if max(img.size) > MAX_IMAGE_DIMENSION:
+            img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.LANCZOS)
 
-    with open(image_path, "rb") as f:
-        data = base64.b64encode(f.read()).decode("utf-8")
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG", quality=85)
+        data = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-    return f"data:{mime_type};base64,{data}"
+    return f"data:image/jpeg;base64,{data}"
+
+
+@retry(
+    retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    reraise=True,
+)
+def _invoke_with_retry(llm: ChatGoogleGenerativeAI, message: HumanMessage):
+    """
+    Retries transient network failures (e.g. a dropped connection
+    mid-request) up to 3 times with exponential backoff. Genuine API
+    errors (quota, bad model name, etc.) are not transport-level
+    exceptions and pass straight through -- retrying those would just
+    waste 3x the time before failing the same way.
+    """
+    return llm.invoke([message])
 
 
 def extract_text(image_path: str) -> str:
@@ -91,7 +135,7 @@ def extract_text(image_path: str) -> str:
         ]
     )
 
-    response = llm.invoke([message])
+    response = _invoke_with_retry(llm, message)
     text = response.content
 
     if isinstance(text, list):

@@ -149,6 +149,24 @@ Critical rule — fixed vs. flexible items
   proposing they run during time already occupied by a fixed
   calendar_event.
 
+Critical rule — reminders
+
+- For every fact with a deadline, exam, or fixed commitment, create a
+  corresponding Reminder so the user gets advance warning instead of
+  finding out only when it's due. Do not leave `reminders` empty when
+  such facts exist.
+- Set `reminder_datetime` to some sensible time before the actual
+  deadline/event (e.g. the evening before, or a few hours ahead for
+  same-day items) — never the exact deadline moment itself, since a
+  reminder AT the deadline is too late to act on.
+- Set `priority` to match the urgency implied by the fact ("high" for
+  exams/hard deadlines, "medium" for assignments, "low" for soft
+  goals).
+- Do not create a reminder for purely flexible study goals that have
+  no fixed deadline (e.g. "study ML when free") -- reminders are for
+  things the user could otherwise forget or miss, not for open-ended
+  work.
+
 Rules
 
 1. Respect every hard constraint.

@@ -128,6 +128,8 @@ class Reminder(BaseModel):
 
     notes: str = ""
 
+    priority: Literal["low", "medium", "high"] = "medium"
+
 
 # ==========================================================
 # FINAL OUTPUT
